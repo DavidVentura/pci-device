@@ -1,4 +1,4 @@
-#include <linux/pci.h>
+#include "driver.h"
 
 static struct pci_device_id gpu_id_tbl[] = {
 	{ PCI_DEVICE(0x1234, 0x1337) },
@@ -8,16 +8,13 @@ MODULE_DEVICE_TABLE(pci, gpu_id_tbl);
 
 MODULE_LICENSE("GPL");
 
+
 static struct class *gpu_class;
-
-typedef struct GpuState {
-	struct pci_dev *pdev;
-} GpuState;
-
+int setup_chardev(struct class*, struct pci_dev*);
 static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	int bars;
 	unsigned long mmio_start, mmio_len;
-	static u8 __iomem *hwmem; /* Memory pointer for the I/O operations */
+	static u8 __iomem *hwmem;
 	pr_info("called probe");
 
 
@@ -34,6 +31,8 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	// map physical address to virtual
 	hwmem = ioremap(mmio_start, mmio_len);
 	pr_info("mmio starts at 0x%lx; hwmem 0x%px", mmio_start, hwmem);
+
+	setup_chardev(gpu_class, pdev);
 	return 0;
 };
 
@@ -50,4 +49,5 @@ static int __init gpu_module_init(void) {
 	pr_info("gpu_module_init done\n");
 	return err;
 }
+
 module_init(gpu_module_init);
