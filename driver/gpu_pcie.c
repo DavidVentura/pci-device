@@ -10,11 +10,11 @@ MODULE_LICENSE("GPL");
 
 
 static struct class *gpu_class;
-int setup_chardev(struct class*, struct pci_dev*);
+int setup_chardev(GpuState*, struct class*, struct pci_dev*);
 static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	int bars;
 	unsigned long mmio_start, mmio_len;
-	static u8 __iomem *hwmem;
+	GpuState* gpu = kmalloc(sizeof(struct GpuState), GFP_KERNEL);
 	pr_info("called probe");
 
 
@@ -29,10 +29,10 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	mmio_len = pci_resource_len(pdev, 0);
 
 	// map physical address to virtual
-	hwmem = ioremap(mmio_start, mmio_len);
-	pr_info("mmio starts at 0x%lx; hwmem 0x%px", mmio_start, hwmem);
+	gpu->hwmem = ioremap(mmio_start, mmio_len);
+	pr_info("mmio starts at 0x%lx; hwmem 0x%px", mmio_start, gpu->hwmem);
 
-	setup_chardev(gpu_class, pdev);
+	setup_chardev(gpu, gpu_class, pdev);
 	return 0;
 };
 
