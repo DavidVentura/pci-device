@@ -62,13 +62,34 @@ static void gpu_class_init(ObjectClass *class, void *data) {
     k->class_id = PCI_CLASS_OTHERS;
 }
 
+static uint64_t lower_n_bytes(uint64_t data, unsigned nbytes) {
+	uint64_t result;
+	if (nbytes < 8) {
+		uint64_t bitcount = ((uint64_t)nbytes)<<3;
+		uint64_t mask = (1ULL << bitcount)-1;
+		result = data & mask;
+	} else {
+		result = data;
+	}
+	return result;
+}
+
 static uint64_t gpu_control_read(void *opaque, hwaddr addr, unsigned size) {
-	return 0;
+	GpuState *gpu = opaque;
+	uint64_t index = lower_n_bytes(addr, size);
+	uint32_t index_u32 = index / sizeof(uint32_t);
+	uint64_t result = ((uint32_t*)gpu->registers)[index_u32];
+	printf("reading idx %lu = %lu\n", index, result);
+	return result;
 }
 
 static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned size) {
 	GpuState *gpu = opaque;
-	gpu->registers[addr] = val;
+	val = lower_n_bytes(val, size);
+	uint32_t index_u32 = addr / sizeof(uint32_t);
+	printf("writing idx %u, addr %ld, size %u = %lu\n", index_u32, addr, size, val);
+	// TODO: should write only masked bits, not whole u64
+	((uint32_t*)gpu->registers)[index_u32] = val;
 }
 
 static const MemoryRegionOps gpu_mem_ops = {
