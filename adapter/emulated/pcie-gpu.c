@@ -18,7 +18,9 @@ DECLARE_INSTANCE_CHECKER(GpuState, GPU, TYPE_PCI_GPU_DEVICE)
 struct GpuState {
     PCIDevice pdev;
     MemoryRegion mem;
+    MemoryRegion fbmem;
 	unsigned char registers[0x100000]; // 1 MiB
+	unsigned char framebuffer[0x1000000]; // 16 MiB
 };
 
 static void pci_gpu_register_types(void);
@@ -92,6 +94,17 @@ static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned 
 	((uint32_t*)gpu->registers)[index_u32] = val;
 }
 
+static uint64_t gpu_fb_read(void *opaque, hwaddr addr, unsigned size) {
+	// GpuState *gpu = opaque;
+	printf("reading framebuffer %lu = %u\n", addr, size);
+	return 0; // pretend we have 0 bytes to give
+}
+
+static void gpu_fb_write(void *opaque, hwaddr addr, uint64_t val, unsigned size) {
+	// GpuState *gpu = opaque;
+	printf("writing framebuffer, addr %ld, size %u = %lu\n", addr, size, val);
+}
+
 static const MemoryRegionOps gpu_mem_ops = {
     .read = gpu_control_read,
     .write = gpu_control_write,
@@ -102,11 +115,23 @@ static const MemoryRegionOps gpu_mem_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
+static const MemoryRegionOps gpu_fb_ops = {
+    .read = gpu_fb_read,
+    .write = gpu_fb_write,
+	.valid = {
+        .min_access_size = 0x4,
+        .max_access_size = 0x1000,
+    },
+    .endianness = DEVICE_LITTLE_ENDIAN,
+};
+
 static void pci_gpu_realize(PCIDevice *pdev, Error **errp) {
     printf("GPU Realize\n");
     GpuState *gpu = GPU(pdev);
     memory_region_init_io(&gpu->mem, OBJECT(gpu), &gpu_mem_ops, gpu, "gpu-control-mem", 1 * MiB);
+    memory_region_init_io(&gpu->fbmem, OBJECT(gpu), &gpu_fb_ops, gpu, "gpu-fb-mem", 16 * MiB);
     pci_register_bar(pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->mem);
+    pci_register_bar(pdev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->fbmem);
 }
 
 static void pci_gpu_uninit(PCIDevice *pdev) {

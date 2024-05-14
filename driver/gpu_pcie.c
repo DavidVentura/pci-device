@@ -32,6 +32,13 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	gpu->hwmem = ioremap(mmio_start, mmio_len);
 	pr_info("mmio starts at 0x%lx; hwmem 0x%px", mmio_start, gpu->hwmem);
 
+	mmio_start = pci_resource_start(pdev, 1);
+	mmio_len = pci_resource_len(pdev, 1);
+
+	// map physical address to virtual
+	gpu->fbmem = ioremap(mmio_start, mmio_len);
+	pr_info("fb starts at 0x%lx; hwmem 0x%px", mmio_start, gpu->fbmem);
+
 	setup_chardev(gpu, gpu_class, pdev);
 	return 0;
 };

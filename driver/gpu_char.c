@@ -1,5 +1,5 @@
 #include "driver.h"
-#define MAX_CHAR_DEVICES 1
+#define MAX_CHAR_DEVICES 2
 
 static int gpu_open(struct inode *inode, struct file *file) {
 	GpuState *gpu = container_of(inode->i_cdev, struct GpuState, cdev);
@@ -44,17 +44,20 @@ static const struct file_operations fileops = {
 
 int setup_chardev(GpuState* gpu, struct class* class, struct pci_dev *pdev) {
 	dev_t dev_num;
-	dev_t minor;
 	dev_t major;
-	alloc_chrdev_region(&dev_num, 0, 1, "gpu-chardev");
+	alloc_chrdev_region(&dev_num, 0, MAX_CHAR_DEVICES, "gpu-chardev");
 	major = MAJOR(dev_num);
-	minor = MINOR(dev_num);
 
 	cdev_init(&gpu->cdev, &fileops);
 	gpu->cdev.owner = THIS_MODULE;
+	cdev_add(&gpu->cdev, MKDEV(major, 0), 1);
+	device_create(class, NULL, MKDEV(major, 0), NULL, "gpu-%d", 0);
 
-	cdev_add(&gpu->cdev, MKDEV(major, minor), 1);
-	device_create(class, NULL, MKDEV(major, minor), NULL, "gpu-0");
+	cdev_init(&gpu->fbcdev, &fileops);
+	gpu->fbcdev.owner = THIS_MODULE;
+	cdev_add(&gpu->fbcdev, MKDEV(major, 1), 1);
+	device_create(class, NULL, MKDEV(major, 1), NULL, "gpu-%d", 1);
+
 	pr_info("character device set up");
 	return 0;
 }
