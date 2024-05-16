@@ -9,6 +9,7 @@
 #include "qemu/main-loop.h" /* iothread mutex */
 #include "qemu/module.h"
 #include "qapi/visitor.h"
+#include "hw.h"
 
 #define TYPE_PCI_GPU_DEVICE "gpu"
 #define GPU_DEVICE_ID         0x1337
@@ -19,7 +20,7 @@ struct GpuState {
     PCIDevice pdev;
     MemoryRegion mem;
     MemoryRegion fbmem;
-	unsigned char registers[0x100000]; // 1 MiB
+	uint32_t registers[0x100000 / 32]; // 1 MiB = 32k, 32 bit registers
 	unsigned char framebuffer[0x1000000]; // 16 MiB
 };
 
@@ -88,10 +89,28 @@ static uint64_t gpu_control_read(void *opaque, hwaddr addr, unsigned size) {
 static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned size) {
 	GpuState *gpu = opaque;
 	val = lower_n_bytes(val, size);
-	uint32_t index_u32 = addr / sizeof(uint32_t);
-	printf("writing idx %u, addr %ld, size %u = %lu\n", index_u32, addr, size, val);
+	uint32_t reg = addr / 4;
+	printf("writing addr %ld [reg %d], size %u = %lu\n", addr, reg, size, val);
 	// TODO: should write only masked bits, not whole u64
-	((uint32_t*)gpu->registers)[index_u32] = val;
+	switch (reg) {
+		case REG_DMA_DIR:
+		case REG_DMA_ADDR_SRC:
+		case REG_DMA_ADDR_DST:
+			gpu->registers[reg] = (uint32_t)val;
+			// not 
+			break;
+		case REG_DMA_START:
+			printf("supposed to start DMA now\n");
+			break;
+		case REG_DMA_IRQ_SET:
+			printf("!supposed to set the IRQ value to %ld\n", val);
+			if (val == 0) {
+				msi_notify(&gpu->pdev, IRQ_TEST);
+			} else {
+				msi_notify(&gpu->pdev, IRQ_DMA_DONE);
+			}
+			break;
+	}
 }
 
 static uint64_t gpu_fb_read(void *opaque, hwaddr addr, unsigned size) {
@@ -132,6 +151,11 @@ static void pci_gpu_realize(PCIDevice *pdev, Error **errp) {
     memory_region_init_io(&gpu->fbmem, OBJECT(gpu), &gpu_fb_ops, gpu, "gpu-fb-mem", 16 * MiB);
     pci_register_bar(pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->mem);
     pci_register_bar(pdev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->fbmem);
+
+	int ret = msi_init(pdev, 0 /* offset */, IRQ_COUNT, true /* 64b */, false /* msi per vector mask */, errp);
+	if (ret) {
+		printf("msi init ret %d\n", ret);
+	}
 }
 
 static void pci_gpu_uninit(PCIDevice *pdev) {

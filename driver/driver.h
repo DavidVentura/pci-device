@@ -12,6 +12,7 @@ typedef struct GpuState {
 	// offset to GpuState, which we can then pass to `file`'s `private_data`
 	struct cdev cdev;
 	struct cdev fbcdev;
+
 } GpuState;
 
 #endif

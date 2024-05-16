@@ -8,6 +8,7 @@
 	2. apply `adapter/emulated/qemu.patch`
 	3. symlink `adapter/emulated/pcie-gpu.c` to QEMU's `hw/misc/`
 	4. build it
+3. `export QEMU_PATH=~/git/qemu/build`
 3. generate initramfs with `build-initramfs.sh`
 4. run a VM
 	```bash

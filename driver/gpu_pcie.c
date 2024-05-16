@@ -1,4 +1,5 @@
 #include "driver.h"
+#include "hw.h"
 
 static struct pci_device_id gpu_id_tbl[] = {
 	{ PCI_DEVICE(0x1234, 0x1337) },
@@ -11,10 +12,50 @@ MODULE_LICENSE("GPL");
 
 static struct class *gpu_class;
 int setup_chardev(GpuState*, struct class*, struct pci_dev*);
+
+static irqreturn_t irq_handler(int irq, void *data) {
+	GpuState *gpu = data;
+	(void)gpu;
+	pr_info("IRQ handler called from IRQ %d", irq);
+	return 0;
+}
+static int setup_msi(GpuState* gpu) {
+	int err;
+	int msi_vecs;
+	int irq_num;
+	int avail_msi;
+
+	avail_msi = pci_msi_vec_count(gpu->pdev);
+	pr_info("cpus %d", num_online_cpus());
+
+	pr_info("allocating %d msi vectors", avail_msi);
+
+	msi_vecs = pci_alloc_irq_vectors(gpu->pdev, avail_msi, avail_msi, PCI_IRQ_MSIX | PCI_IRQ_MSI);
+	if (msi_vecs < 0) {
+		pr_err("Could not allocate MSI vectors");
+		return -ENOSPC;
+	}
+	irq_num = pci_irq_vector(gpu->pdev, IRQ_DMA_DONE);
+	pr_info("Got MSI vec %d, IRQ num %d", msi_vecs, irq_num);
+	err = request_threaded_irq(irq_num, irq_handler, NULL, 0, "GPU-Dma0", gpu);
+	if (err) {
+		pr_err("Failed to get threaded IRQ: %d", err);
+	}
+
+	irq_num = pci_irq_vector(gpu->pdev, IRQ_TEST);
+	pr_info("Got [test] IRQ num %d", irq_num);
+	err = request_threaded_irq(irq_num, irq_handler, NULL, 0, "GPU-Test", gpu);
+	if (err) {
+		pr_err("Failed to get threaded IRQ: %d", err);
+	}
+	return 0;
+}
+
 static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	int bars;
 	unsigned long mmio_start, mmio_len;
 	GpuState* gpu = kmalloc(sizeof(struct GpuState), GFP_KERNEL);
+	gpu->pdev = pdev;
 	pr_info("called probe");
 
 
@@ -40,6 +81,11 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	pr_info("fb starts at 0x%lx; hwmem 0x%px", mmio_start, gpu->fbmem);
 
 	setup_chardev(gpu, gpu_class, pdev);
+
+	// need to set dma_mask & bus master to get IRQs
+	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+	pci_set_master(pdev);
+	setup_msi(gpu);
 	return 0;
 };
 
