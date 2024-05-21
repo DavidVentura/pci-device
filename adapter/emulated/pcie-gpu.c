@@ -94,7 +94,7 @@ static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned 
 	uint32_t reg = addr / 4;
 	printf("writing addr %ld [reg %d], size %u = %lu\n", addr, reg, size, val);
 	// TODO: should write only masked bits, not whole u64
-	switch (reg) {
+	switch (addr) {
 		case REG_DMA_DIR:
 		case REG_DMA_ADDR_SRC:
 		case REG_DMA_ADDR_DST:
