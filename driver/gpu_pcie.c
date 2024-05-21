@@ -23,14 +23,9 @@ static int setup_msi(GpuState* gpu) {
 	int err;
 	int msi_vecs;
 	int irq_num;
-	int avail_msi;
 
-	avail_msi = pci_msi_vec_count(gpu->pdev);
-	pr_info("cpus %d", num_online_cpus());
 
-	pr_info("allocating %d msi vectors", avail_msi);
-
-	msi_vecs = pci_alloc_irq_vectors(gpu->pdev, avail_msi, avail_msi, PCI_IRQ_MSIX | PCI_IRQ_MSI);
+	msi_vecs = pci_alloc_irq_vectors(gpu->pdev, IRQ_COUNT, IRQ_COUNT, PCI_IRQ_MSIX | PCI_IRQ_MSI);
 	if (msi_vecs < 0) {
 		pr_err("Could not allocate MSI vectors");
 		return -ENOSPC;
