@@ -94,17 +94,35 @@ static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned 
 	uint32_t reg = addr / 4;
 	printf("writing addr %ld [reg %d], size %u = %lu\n", addr, reg, size, val);
 	// TODO: should write only masked bits, not whole u64
-	switch (addr) {
+	switch (reg) {
 		case REG_DMA_DIR:
 		case REG_DMA_ADDR_SRC:
 		case REG_DMA_ADDR_DST:
+		case REG_DMA_LEN:
 			gpu->registers[reg] = (uint32_t)val;
 			// not 
 			break;
 		case REG_DMA_START:
-			printf("supposed to start DMA now\n");
+			// should mask address space
+			if (gpu->registers[REG_DMA_DIR] == DIR_HOST_TO_GPU) {
+				printf("Copy to GPU, from 0x%x (host) to offset 0x%x (dev), len 0x%x\n",
+						gpu->registers[REG_DMA_ADDR_SRC],
+						gpu->registers[REG_DMA_ADDR_DST],
+						gpu->registers[REG_DMA_LEN]);
+
+				int err = pci_dma_read(&gpu->pdev,
+							 gpu->registers[REG_DMA_ADDR_SRC], // host addr
+							 (gpu->framebuffer + gpu->registers[REG_DMA_ADDR_DST]), // dev addr
+							 gpu->registers[REG_DMA_LEN]);
+
+				msix_notify(&gpu->pdev, IRQ_DMA_DONE);
+
+			} else {
+				printf("Unimplemented DMA direction\n");
+			}
 			break;
 		case REG_DMA_IRQ_SET:
+			// debugging
 			printf("!supposed to set the IRQ value to %ld\n", val);
 			if (val == 0) {
 				msix_notify(&gpu->pdev, IRQ_TEST);
@@ -117,33 +135,12 @@ static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned 
 	}
 }
 
-static uint64_t gpu_fb_read(void *opaque, hwaddr addr, unsigned size) {
-	// GpuState *gpu = opaque;
-	printf("reading framebuffer %lu = %u\n", addr, size);
-	return 0; // pretend we have 0 bytes to give
-}
-
-static void gpu_fb_write(void *opaque, hwaddr addr, uint64_t val, unsigned size) {
-	// GpuState *gpu = opaque;
-	printf("writing framebuffer, addr %ld, size %u = %lu\n", addr, size, val);
-}
-
 static const MemoryRegionOps gpu_mem_ops = {
     .read = gpu_control_read,
     .write = gpu_control_write,
 	.valid = {
         .min_access_size = 0x1,
-        .max_access_size = 0x1000,
-    },
-    .endianness = DEVICE_LITTLE_ENDIAN,
-};
-
-static const MemoryRegionOps gpu_fb_ops = {
-    .read = gpu_fb_read,
-    .write = gpu_fb_write,
-	.valid = {
-        .min_access_size = 0x4,
-        .max_access_size = 0x1000,
+        .max_access_size = 0x4,
     },
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
@@ -152,7 +149,8 @@ static void pci_gpu_realize(PCIDevice *pdev, Error **errp) {
     printf("GPU Realize\n");
     GpuState *gpu = GPU(pdev);
     memory_region_init_io(&gpu->mem, OBJECT(gpu), &gpu_mem_ops, gpu, "gpu-control-mem", 1 * MiB);
-    memory_region_init_io(&gpu->fbmem, OBJECT(gpu), &gpu_fb_ops, gpu, "gpu-fb-mem", 16 * MiB);
+    //memory_region_init(&gpu->fbmem, OBJECT(gpu), "gpu-fb-mem", 16 * MiB);
+    memory_region_init_ram(&gpu->fbmem, OBJECT(gpu), "gpu-fb-mem", 16 * MiB, errp);
     memory_region_init(&gpu->msix, OBJECT(gpu), "gpu-msix", 16 * KiB);
 
     pci_register_bar(pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->mem);

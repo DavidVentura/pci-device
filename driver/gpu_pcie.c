@@ -10,20 +10,26 @@ MODULE_DEVICE_TABLE(pci, gpu_id_tbl);
 MODULE_LICENSE("GPL");
 
 
+wait_queue_head_t wq;
+volatile int irq_fired = 0;
 static struct class *gpu_class;
+
 int setup_chardev(GpuState*, struct class*, struct pci_dev*);
 
 static irqreturn_t irq_handler(int irq, void *data) {
 	GpuState *gpu = data;
 	(void)gpu;
-	pr_info("IRQ handler called from IRQ %d", irq);
-	return 0;
+	irq_fired = 1;
+	wake_up_interruptible(&wq);
+	return IRQ_HANDLED;
 }
+
 static int setup_msi(GpuState* gpu) {
 	int err;
 	int msi_vecs;
 	int irq_num;
 
+	init_waitqueue_head(&wq);
 
 	msi_vecs = pci_alloc_irq_vectors(gpu->pdev, IRQ_COUNT, IRQ_COUNT, PCI_IRQ_MSIX | PCI_IRQ_MSI);
 	if (msi_vecs < 0) {
@@ -48,6 +54,7 @@ static int setup_msi(GpuState* gpu) {
 
 static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	int bars;
+	int err;
 	unsigned long mmio_start, mmio_len;
 	GpuState* gpu = kmalloc(sizeof(struct GpuState), GFP_KERNEL);
 	gpu->pdev = pdev;
@@ -78,7 +85,10 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	setup_chardev(gpu, gpu_class, pdev);
 
 	// need to set dma_mask & bus master to get IRQs
-	dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+	if(err) {
+		pr_err("could not set dma mask: %d\n", err);
+	}
 	pci_set_master(pdev);
 	setup_msi(gpu);
 	return 0;
