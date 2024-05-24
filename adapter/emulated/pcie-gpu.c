@@ -11,9 +11,10 @@
 #include "qemu/module.h"
 #include "qapi/visitor.h"
 #include "hw.h"
+#include "ui/console.h"
 
-#define TYPE_PCI_GPU_DEVICE "gpu"
-#define GPU_DEVICE_ID         0x1337
+#define TYPE_PCI_GPU_DEVICE 	"gpu"
+#define GPU_DEVICE_ID         	0x1337
 typedef struct GpuState GpuState;
 DECLARE_INSTANCE_CHECKER(GpuState, GPU, TYPE_PCI_GPU_DEVICE)
 
@@ -22,8 +23,9 @@ struct GpuState {
     MemoryRegion mem;
     MemoryRegion fbmem;
     MemoryRegion msix;
+	QemuConsole* con;
 	uint32_t registers[0x100000 / 32]; // 1 MiB = 32k, 32 bit registers
-	unsigned char framebuffer[0x1000000]; // 16 MiB
+	uint32_t framebuffer[0x200000]; // barely enough for 1920x1080 at 32bpp
 };
 
 static void pci_gpu_register_types(void);
@@ -57,7 +59,6 @@ static void gpu_instance_init(Object *obj) {
 }
 
 static void gpu_class_init(ObjectClass *class, void *data) {
-    printf("Class init\n");
     PCIDeviceClass *k = PCI_DEVICE_CLASS(class);
 
     k->realize = pci_gpu_realize;
@@ -65,6 +66,9 @@ static void gpu_class_init(ObjectClass *class, void *data) {
     k->vendor_id = PCI_VENDOR_ID_QEMU;
     k->device_id = GPU_DEVICE_ID;
     k->class_id = PCI_CLASS_OTHERS;
+
+    DeviceClass *dc = DEVICE_CLASS(class);
+    set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
 }
 
 static uint64_t lower_n_bytes(uint64_t data, unsigned nbytes) {
@@ -145,6 +149,30 @@ static const MemoryRegionOps gpu_mem_ops = {
     .endianness = DEVICE_LITTLE_ENDIAN,
 };
 
+static void vga_invalidate_display(void *opaque) {
+	printf("invalidated display\n");
+}
+static void vga_update_text(void *opaque, console_ch_t *chardata) {
+	printf("updated text\n");
+}
+static void vga_update_display(void *opaque) {
+//	printf("updated display\n");
+	GpuState* gpu = opaque;
+    DisplaySurface *surface = qemu_console_surface(gpu->con);
+	for(int i = 0; i<256*1024; i++) {
+		((uint32_t*)surface_data(surface))[i] = gpu->framebuffer[i % 0x200000 ];
+	}
+
+	dpy_gfx_update(gpu->con, 0, 0, 800, 600);
+	//qemu_console_resize(gpu->con, 800, 600);
+}
+
+static const GraphicHwOps ghwops = {
+   .invalidate  = vga_invalidate_display,
+   .gfx_update  = vga_update_display,
+   .text_update = vga_update_text,
+};
+
 static void pci_gpu_realize(PCIDevice *pdev, Error **errp) {
     printf("GPU Realize\n");
     GpuState *gpu = GPU(pdev);
@@ -164,6 +192,13 @@ static void pci_gpu_realize(PCIDevice *pdev, Error **errp) {
 	}
 	for(int i = 0; i < IRQ_COUNT; i++) {
 		msix_vector_use(pdev, i);
+	}
+
+    gpu->con = graphic_console_init(DEVICE(pdev), 0, &ghwops, gpu);
+    DisplaySurface *surface = qemu_console_surface(gpu->con);
+	for(int i = 0; i<256*1024; i++) {
+		gpu->framebuffer[i % 0x200000 ] = i;
+		((uint32_t*)surface_data(surface))[i] = gpu->framebuffer[i % 0x200000 ];
 	}
 }
 
