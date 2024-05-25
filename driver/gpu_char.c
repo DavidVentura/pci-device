@@ -17,7 +17,7 @@ static void write_reg(GpuState* gpu, u32 val, u32 reg) {
 	iowrite32(val, 	gpu->hwmem + (reg * sizeof(u32)));
 }
 
-void setup_dma(GpuState* gpu, u8 dir, u32 src, u32 dst, u32 len) {
+void execute_dma(GpuState* gpu, u8 dir, u32 src, u32 dst, u32 len) {
 	write_reg(gpu, dir, REG_DMA_DIR);
 	write_reg(gpu, src,	REG_DMA_ADDR_SRC);
 	write_reg(gpu, dst,	REG_DMA_ADDR_DST);
@@ -50,7 +50,7 @@ static ssize_t gpu_fb_read(struct file *file, char __user *buf, size_t count, lo
 
 	irq_fired = 0;
 
-	setup_dma(gpu, DIR_GPU_TO_HOST, *offset, dma_addr, count);
+	execute_dma(gpu, DIR_GPU_TO_HOST, *offset, dma_addr, count);
 	if (wait_event_interruptible(wq, irq_fired != 0)) {
 		pr_info("interrupted");
 		kvfree(pages);
@@ -78,16 +78,16 @@ static ssize_t gpu_fb_write(struct file *file, const char __user *buf, size_t co
 	// #PF: error_code(0x0000) - not-present page
 	//dma_addr = dma_map_single(&gpu->pdev->dev, buf, count, DMA_TO_DEVICE);
 
-	// "works" == no crash, but buffer is not written
-	dma_addr = dma_map_page(&gpu->pdev->dev, pages[0], 0 /*offset*/, count, DMA_TO_DEVICE);
-	pr_info("dma addr (pages): 0x%llx\n", dma_addr);
-	pr_info("kbuf %px ubuf %px\n", kbuf, buf);
+	// "works" == no crash, but garbage is written after the first parts..
+	//dma_addr = dma_map_page(&gpu->pdev->dev, pages[0], 0 /*offset*/, count, DMA_TO_DEVICE);
+	//pr_info("dma addr (pages): 0x%llx\n", dma_addr);
+	//pr_info("kbuf %px ubuf %px\n", kbuf, buf);
 
 	// works, but needs a memcpy
 	dma_addr = dma_map_single(&gpu->pdev->dev, kbuf, count, DMA_TO_DEVICE);
-	pr_info("dma addr (kbuf): 0x%llx\n", dma_addr);
+	//pr_info("dma addr (kbuf): 0x%llx\n", dma_addr);
 	pr_info("setup DMA! - user: 0x%px, offset: 0x%llx\n", buf, *offset);
-	setup_dma(gpu, DIR_HOST_TO_GPU, dma_addr, *offset, count);
+	execute_dma(gpu, DIR_HOST_TO_GPU, dma_addr, *offset, count);
 
 	if (wait_event_interruptible(wq, irq_fired != 0)) {
 		pr_info("interrupted");
@@ -149,18 +149,15 @@ static const struct file_operations fileops = {
 };
 
 int setup_chardev(GpuState* gpu, struct class* class, struct pci_dev *pdev) {
-	dev_t dev_num;
-	dev_t major;
+	dev_t dev_num, major;
 	alloc_chrdev_region(&dev_num, 0, MAX_CHAR_DEVICES, "gpu-chardev");
 	major = MAJOR(dev_num);
 
 	cdev_init(&gpu->cdev, &fileops);
-	gpu->cdev.owner = THIS_MODULE;
 	cdev_add(&gpu->cdev, MKDEV(major, 0), 1);
 	device_create(class, NULL, MKDEV(major, 0), NULL, "gpu-io");
 
 	cdev_init(&gpu->fbcdev, &fb_ops);
-	gpu->fbcdev.owner = THIS_MODULE;
 	cdev_add(&gpu->fbcdev, MKDEV(major, 1), 1);
 	device_create(class, NULL, MKDEV(major, 1), NULL, "gpu-%d", 0);
 

@@ -11,8 +11,8 @@
 #define REG_DMA_IRQ_SET 	5
 
 
-#define IRQ_DMA_DONE 	0
-#define IRQ_TEST 		1
+#define IRQ_DMA_DONE_NR 	0
+#define IRQ_TEST 			1
 
 // should be power of 2
 #define IRQ_COUNT 		2

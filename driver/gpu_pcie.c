@@ -36,7 +36,7 @@ static int setup_msi(GpuState* gpu) {
 		pr_err("Could not allocate MSI vectors");
 		return -ENOSPC;
 	}
-	irq_num = pci_irq_vector(gpu->pdev, IRQ_DMA_DONE);
+	irq_num = pci_irq_vector(gpu->pdev, IRQ_DMA_DONE_NR);
 	pr_info("Got MSI vec %d, IRQ num %d", msi_vecs, irq_num);
 	err = request_threaded_irq(irq_num, irq_handler, NULL, 0, "GPU-Dma0", gpu);
 	if (err) {

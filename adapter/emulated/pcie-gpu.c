@@ -132,8 +132,8 @@ static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned 
 				msix_notify(&gpu->pdev, IRQ_TEST);
 				//msix_clr_pending(&gpu->pdev, IRQ_TEST);
 			} else {
-				msix_notify(&gpu->pdev, IRQ_DMA_DONE);
-				//msix_clr_pending(&gpu->pdev, IRQ_DMA_DONE);
+				msix_notify(&gpu->pdev, IRQ_DMA_DONE_NR);
+				//msix_clr_pending(&gpu->pdev, IRQ_DMA_DONE_NR);
 			}
 			break;
 	}
@@ -176,17 +176,17 @@ static const GraphicHwOps ghwops = {
 static void pci_gpu_realize(PCIDevice *pdev, Error **errp) {
     printf("GPU Realize\n");
     GpuState *gpu = GPU(pdev);
-    memory_region_init_io(&gpu->mem, OBJECT(gpu), &gpu_mem_ops, gpu, "gpu-control-mem", 1 * MiB);
+    memory_region_init_io(&gpu->mem, OBJECT(gpu), &gpu_mem_ops, gpu, "gpu-control-mem", 16 * MiB);
     //memory_region_init(&gpu->fbmem, OBJECT(gpu), "gpu-fb-mem", 16 * MiB);
     memory_region_init_ram(&gpu->fbmem, OBJECT(gpu), "gpu-fb-mem", 16 * MiB, errp);
-    memory_region_init(&gpu->msix, OBJECT(gpu), "gpu-msix", 16 * KiB);
+    //memory_region_init(&gpu->msix, OBJECT(gpu), "gpu-msix", 16 * KiB);
 
     pci_register_bar(pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->mem);
     pci_register_bar(pdev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->fbmem);
-    pci_register_bar(pdev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->msix);
+    //pci_register_bar(pdev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->msix);
 
-	int ret = msix_init(pdev, IRQ_COUNT, &gpu->msix, 2 /* table_bar_nr  = bar id */, 0x0 /* table_offset */,
-						&gpu->msix, 2 /* pba_bar_nr  = bar id */, 0x2000 /* pba_offset */, 0xA0 /* cap_pos ?? */,errp);
+	int ret = msix_init(pdev, IRQ_COUNT, &gpu->mem, 0 /* table_bar_nr  = bar id */, 0x1000 /* table_offset */,
+						&gpu->mem, 0 /* pba_bar_nr  = bar id */, 0x3000 /* pba_offset */, 0x0 /* cap_pos ?? */,errp);
 	if (ret) {
 		printf("msi init ret %d\n", ret);
 	}
