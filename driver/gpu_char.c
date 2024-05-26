@@ -22,7 +22,7 @@ void execute_dma(GpuState* gpu, u8 dir, u32 src, u32 dst, u32 len) {
 	write_reg(gpu, src,	REG_DMA_ADDR_SRC);
 	write_reg(gpu, dst,	REG_DMA_ADDR_DST);
 	write_reg(gpu, len,	REG_DMA_LEN);
-	write_reg(gpu, 1, 	REG_DMA_START);
+	write_reg(gpu, 1, 	CMD_DMA_START);
 }
 
 static struct page** pin(const char* buf, size_t count, loff_t offset, u32* pages_pinned) {

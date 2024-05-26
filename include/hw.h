@@ -7,8 +7,12 @@
 #define REG_DMA_ADDR_SRC 	1
 #define REG_DMA_ADDR_DST 	2
 #define REG_DMA_LEN 		3
-#define REG_DMA_START 		4
-#define REG_DMA_IRQ_SET 	5
+#define REG_DMA_IRQ_SET 	4
+
+#define CMD_ADDR_BASE 		0xf00
+#define MSIX_ADDR_BASE 		0x1000
+#define PBA_ADDR_BASE 		0x3000
+#define CMD_DMA_START 		(CMD_ADDR_BASE + 0)
 
 
 #define IRQ_DMA_DONE_NR 	0

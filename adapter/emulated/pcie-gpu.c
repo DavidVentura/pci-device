@@ -98,15 +98,12 @@ static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned 
 	uint32_t reg = addr / 4;
 	printf("writing addr %ld [reg %d], size %u = %lu\n", addr, reg, size, val);
 	// TODO: should write only masked bits, not whole u64
+	if (reg < CMD_ADDR_BASE) { // register
+		gpu->registers[reg] = (uint32_t)val;
+		return;
+	}
 	switch (reg) {
-		case REG_DMA_DIR:
-		case REG_DMA_ADDR_SRC:
-		case REG_DMA_ADDR_DST:
-		case REG_DMA_LEN:
-			gpu->registers[reg] = (uint32_t)val;
-			// not 
-			break;
-		case REG_DMA_START:
+		case CMD_DMA_START:
 			// should mask address space
 			if (gpu->registers[REG_DMA_DIR] == DIR_HOST_TO_GPU) {
 				printf("Copy to GPU, from 0x%x (host) to offset 0x%x (dev), len 0x%x\n",
@@ -118,8 +115,7 @@ static void gpu_control_write(void *opaque, hwaddr addr, uint64_t val, unsigned 
 							 gpu->registers[REG_DMA_ADDR_SRC], // host addr
 							 (gpu->framebuffer + gpu->registers[REG_DMA_ADDR_DST]), // dev addr
 							 gpu->registers[REG_DMA_LEN]);
-
-				msix_notify(&gpu->pdev, IRQ_DMA_DONE);
+				msix_notify(&gpu->pdev, IRQ_DMA_DONE_NR);
 
 			} else {
 				printf("Unimplemented DMA direction\n");
@@ -159,11 +155,11 @@ static void vga_update_display(void *opaque) {
 //	printf("updated display\n");
 	GpuState* gpu = opaque;
     DisplaySurface *surface = qemu_console_surface(gpu->con);
-	for(int i = 0; i<256*1024; i++) {
+	for(int i = 0; i<640*480; i++) {
 		((uint32_t*)surface_data(surface))[i] = gpu->framebuffer[i % 0x200000 ];
 	}
 
-	dpy_gfx_update(gpu->con, 0, 0, 800, 600);
+	dpy_gfx_update(gpu->con, 0, 0, 640, 480);
 	//qemu_console_resize(gpu->con, 800, 600);
 }
 
@@ -185,8 +181,8 @@ static void pci_gpu_realize(PCIDevice *pdev, Error **errp) {
     pci_register_bar(pdev, 1, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->fbmem);
     //pci_register_bar(pdev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &gpu->msix);
 
-	int ret = msix_init(pdev, IRQ_COUNT, &gpu->mem, 0 /* table_bar_nr  = bar id */, 0x1000 /* table_offset */,
-						&gpu->mem, 0 /* pba_bar_nr  = bar id */, 0x3000 /* pba_offset */, 0x0 /* cap_pos ?? */,errp);
+	int ret = msix_init(pdev, IRQ_COUNT, &gpu->mem, 0 /* table_bar_nr  = bar id */, MSIX_ADDR_BASE,
+						&gpu->mem, 0 /* pba_bar_nr  = bar id */, PBA_ADDR_BASE, 0x0 /* cap_pos ?? */,errp);
 	if (ret) {
 		printf("msi init ret %d\n", ret);
 	}
@@ -196,9 +192,8 @@ static void pci_gpu_realize(PCIDevice *pdev, Error **errp) {
 
     gpu->con = graphic_console_init(DEVICE(pdev), 0, &ghwops, gpu);
     DisplaySurface *surface = qemu_console_surface(gpu->con);
-	for(int i = 0; i<256*1024; i++) {
-		gpu->framebuffer[i % 0x200000 ] = i;
-		((uint32_t*)surface_data(surface))[i] = gpu->framebuffer[i % 0x200000 ];
+	for(int i = 0; i<640*480; i++) {
+		((uint32_t*)surface_data(surface))[i] = i;
 	}
 }
 
