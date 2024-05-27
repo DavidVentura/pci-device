@@ -1,0 +1,12 @@
+diff --git a/OvmfPkg/OvmfPkgX64.dsc b/OvmfPkg/OvmfPkgX64.dsc
+index 1b90aa8..5da7b31 100644
+--- a/OvmfPkg/OvmfPkgX64.dsc
++++ b/OvmfPkg/OvmfPkgX64.dsc
+@@ -707,6 +707,7 @@
+ #
+ ################################################################################
+ [Components]
++  OptionRom/Rom.inf
+   OvmfPkg/ResetVector/ResetVector.inf
+ 
+   #

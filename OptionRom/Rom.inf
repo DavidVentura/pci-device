@@ -1,0 +1,19 @@
+[Defines]
+  INF_VERSION    = 0x00010005
+  BASE_NAME      = OptionRom
+  FILE_GUID      = f1f6026b-aa59-4e68-9fbe-6be92e37a225
+  MODULE_TYPE    = UEFI_DRIVER
+  VERSION_STRING = 1.0
+  ENTRY_POINT    = OptionRomEntry
+
+[Sources]
+  rom.c
+
+[Packages]
+  MdePkg/MdePkg.dec
+
+[LibraryClasses]
+  UefiDriverEntryPoint
+  PrintLib
+  DebugLib
+  UefiLib
