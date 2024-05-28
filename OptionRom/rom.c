@@ -1,6 +1,9 @@
 #include "oprom.h"
+#include <Library/BaseMemoryLib.h>
+#include <IndustryStandard/Acpi.h>
 #include <IndustryStandard/Pci.h>
 #include <Library/UefiBootServicesTableLib.h> // gBS
+#include <Library/DevicePathLib.h>
 
 /**
   Check if this device is supported.
@@ -87,79 +90,160 @@ EFI_STATUS EFIAPI GpuVideoControllerDriverStart (
   IN EFI_HANDLE                   Controller,
   IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
   ) {
-    EFI_STATUS Status;
-    MY_GPU_PRIVATE_DATA *Private;
+	EFI_STATUS Status;
+	MY_GPU_PRIVATE_DATA *Private;
 
-    DEBUG ((EFI_D_INFO, "entry\n"));
-    Private = AllocateZeroPool(sizeof(MY_GPU_PRIVATE_DATA));
-    if (Private == NULL) {
-        return EFI_OUT_OF_RESOURCES;
-    }
+	DEBUG ((EFI_D_INFO, "entry\n"));
+	EFI_TPL OldTpl = gBS->RaiseTPL (TPL_CALLBACK);
+	Private = AllocateZeroPool(sizeof(MY_GPU_PRIVATE_DATA));
+	if (Private == NULL) {
+		return EFI_OUT_OF_RESOURCES;
+	}
+	Private->Handle = NULL;
 
-  Status = gBS->OpenProtocol (
-                  Controller,
-                  &gEfiPciIoProtocolGuid,
-                  (VOID **)&Private->PciIo,
-                  This->DriverBindingHandle,
-                  Controller,
-                  EFI_OPEN_PROTOCOL_BY_DRIVER
-                  );
-    if (EFI_ERROR (Status)) {
+	Status = gBS->OpenProtocol (
+			Controller,
+			&gEfiPciIoProtocolGuid,
+			(VOID **)&Private->PciIo,
+			This->DriverBindingHandle,
+			Controller,
+			EFI_OPEN_PROTOCOL_BY_DRIVER
+			);
+	if (EFI_ERROR (Status)) {
 		DEBUG ((EFI_D_ERROR, "failed to ReadPci\n"));
 		return Status;
-    }
+	}
 	// TODO: mb save orig attribs
-	
-  UINT64                    SupportedAttrs;
-  Status = Private->PciIo->Attributes (
-                             Private->PciIo,
-                             EfiPciIoAttributeOperationSupported,
-                             0,
-                             &SupportedAttrs
-                             );
-    if (EFI_ERROR (Status)) {
+
+	UINT64                    SupportedAttrs;
+	Status = Private->PciIo->Attributes (
+			Private->PciIo,
+			EfiPciIoAttributeOperationSupported,
+			0,
+			&SupportedAttrs
+			);
+	if (EFI_ERROR (Status)) {
 		DEBUG ((EFI_D_ERROR, "failed to check attrs\n"));
 		return Status;
-    }
+	}
 	DEBUG ((EFI_D_INFO, "sup attrs: %x\n", SupportedAttrs));
-  //
-  // Set new PCI attributes
-  //
-  Status = Private->PciIo->Attributes (
-                             Private->PciIo,
-                             EfiPciIoAttributeOperationEnable,
-                             EFI_PCI_DEVICE_ENABLE | EFI_PCI_IO_ATTRIBUTE_BUS_MASTER | SupportedAttrs,
-                             NULL
-                             );
-  if (EFI_ERROR (Status)) {
+	//
+	// Set new PCI attributes
+	//
+	Status = Private->PciIo->Attributes (
+			Private->PciIo,
+			EfiPciIoAttributeOperationEnable,
+			EFI_PCI_DEVICE_ENABLE | EFI_PCI_IO_ATTRIBUTE_BUS_MASTER | SupportedAttrs,
+			NULL
+			);
+	if (EFI_ERROR (Status)) {
 		DEBUG ((EFI_D_ERROR, "failed to enable\n"));
 		return Status;
-  }
+	}
+	//
+	// Get ParentDevicePath
+	//
+	EFI_DEVICE_PATH_PROTOCOL  *ParentDevicePath;
+	Status = gBS->HandleProtocol (
+			Controller,
+			&gEfiDevicePathProtocolGuid,
+			(VOID **)&ParentDevicePath
+			);
+	if (EFI_ERROR (Status)) {
+		DEBUG ((EFI_D_ERROR, "failed to get parentdevicepath\n"));
+		return Status;
+	}
+	// what even is this ACPI & why is it required? installing the proto fails otherwise
+	ACPI_ADR_DEVICE_PATH      AcpiDeviceNode;
+	ZeroMem (&AcpiDeviceNode, sizeof (ACPI_ADR_DEVICE_PATH));
+	AcpiDeviceNode.Header.Type    = ACPI_DEVICE_PATH;
+	AcpiDeviceNode.Header.SubType = ACPI_ADR_DP;
+	AcpiDeviceNode.ADR            = ACPI_DISPLAY_ADR (1, 0, 0, 1, 0, ACPI_ADR_DISPLAY_TYPE_VGA, 0, 0);
+	SetDevicePathNodeLength (&AcpiDeviceNode.Header, sizeof (ACPI_ADR_DEVICE_PATH));
+	// what even is this
+	Private->GopDevicePath = AppendDevicePathNode (ParentDevicePath, (EFI_DEVICE_PATH_PROTOCOL *)&AcpiDeviceNode);
+
+	if (Private->GopDevicePath == NULL) {
+		DEBUG ((EFI_D_ERROR, "failed to AppendDevice\n"));
+		return EFI_OUT_OF_RESOURCES;
+	}
+	Status = gBS->InstallMultipleProtocolInterfaces (
+			&Private->Handle,
+			&gEfiDevicePathProtocolGuid,
+			Private->GopDevicePath,
+			NULL
+			);
+	if (EFI_ERROR (Status)) {
+		DEBUG ((EFI_D_ERROR, "failed to install PathProtocol\n"));
+		return Status;
+	}
 
 	Status = GopSetup(Private);
-    if (EFI_ERROR (Status)) {
+	if (EFI_ERROR (Status)) {
 		DEBUG ((EFI_D_ERROR, "failed to GopSetup\n"));
 		return Status;
-    }
+	}
 
 	UINT32 pixval = 0xffffffff;
 	UINT32 i = 0x0;
-	for(i=0; i<32; i++) {
+	for(i=0; i<2; i++) {
 		Status = Private->PciIo->Mem.Write (
-						  Private->PciIo,       // This
-						  EfiPciIoWidthUint32,  // Width
-						  0,                    // BarIndex
-						  i*4,                    // Offset
-						  1,                    // Count
-						  &pixval       		// pixval?
-						  );
+				Private->PciIo,       // This
+				EfiPciIoWidthUint32,  // Width
+				0,                    // BarIndex
+				i*4,                    // Offset
+				1,                    // Count
+				&pixval       		// pixval?
+				);
 		if (EFI_ERROR (Status)) {
 			DEBUG ((EFI_D_ERROR, "failed to memwrite at offset %d\n", i));
-		  //return Status;
+			//return Status;
 		}
 	}
 
-    DEBUG ((EFI_D_INFO, "good\n"));
+
+	// Install the GOP protocol
+	// this hangs if used like this. probably depends on Path
+	Status = gBS->InstallMultipleProtocolInterfaces(
+			&Private->Handle,
+			&gEfiGraphicsOutputProtocolGuid,
+			&Private->Gop,
+			NULL
+			);
+	DEBUG ((EFI_D_INFO, "did install \n"));
+	if (EFI_ERROR(Status)) {
+		FreePool(Private->Gop.Mode);
+		FreePool(Private);
+		DEBUG ((EFI_D_INFO, "very bad\n"));
+	}
+	DEBUG ((EFI_D_INFO, "good\n"));
+	// FIXME: this should get deleted with this early return
+	gBS->RestoreTPL (OldTpl); // never returns!?
+
+	return Status;
+	//
+	// Reference parent handle from child handle.
+	//
+	// i assume, some refcounting shit?
+	// this succeeds but then machine hangs - not just this driver
+	DEBUG ((EFI_D_INFO, "about to open proto\n"));
+	EFI_PCI_IO_PROTOCOL       *ChildPciIo;
+	Status = gBS->OpenProtocol (
+			Controller,
+			&gEfiPciIoProtocolGuid,
+			(VOID **)&ChildPciIo,
+			This->DriverBindingHandle,
+			Private->Handle,
+			EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER
+			);
+	DEBUG ((EFI_D_INFO, "done1, status=%d\n", Status));
+	if (EFI_ERROR (Status)) {
+		DEBUG ((EFI_D_ERROR, "failed to ref parent from child\n"));
+		return Status;
+	}
+	//DEBUG ((EFI_D_INFO, "torestore=%d\n", OldTpl));
+	gBS->RestoreTPL (OldTpl); // never returns!?
+	DEBUG ((EFI_D_INFO, "done, status=%d\n", Status));
 	return Status;
 }
 

@@ -20,7 +20,7 @@ EFI_STATUS EFIAPI MyGpuSetMode(
     IN EFI_GRAPHICS_OUTPUT_PROTOCOL *This,
     IN UINT32 ModeNumber
 ) {
-    DEBUG ((EFI_D_INFO, "setmode\n"));
+    DEBUG ((EFI_D_INFO, "setmode to %d\n", ModeNumber));
     // Implement SetMode function
     return EFI_SUCCESS;
 }
@@ -49,7 +49,6 @@ EFI_STATUS EFIAPI MyGpuQueryMode(
 
 EFI_STATUS EFIAPI GopSetup(IN OUT MY_GPU_PRIVATE_DATA *Private) {
     EFI_STATUS Status;
-    EFI_HANDLE Handle = NULL;
 
     // Initialize the GOP protocol
     Private->Gop.QueryMode = MyGpuQueryMode;
@@ -61,7 +60,7 @@ EFI_STATUS EFIAPI GopSetup(IN OUT MY_GPU_PRIVATE_DATA *Private) {
     Private->Info.HorizontalResolution = 1024;
     Private->Info.VerticalResolution = 768;
     Private->Info.PixelFormat = PixelBlueGreenRedReserved8BitPerColor;
-    Private->Info.PixelsPerScanLine = 1024;
+    Private->Info.PixelsPerScanLine = Private->Info.HorizontalResolution;
 
     Private->InfoPtr = &Private->Info;
     Private->Gop.Mode = AllocateZeroPool(sizeof(EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE));
@@ -73,8 +72,9 @@ EFI_STATUS EFIAPI GopSetup(IN OUT MY_GPU_PRIVATE_DATA *Private) {
     Private->Gop.Mode->Mode = 0;
     Private->Gop.Mode->Info = Private->InfoPtr;
     Private->Gop.Mode->SizeOfInfo = sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION);
-    Private->Gop.Mode->FrameBufferBase = (EFI_PHYSICAL_ADDRESS)(UINTN)AllocatePages(EFI_SIZE_TO_PAGES(1024 * 768 * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL)));
-    Private->Gop.Mode->FrameBufferSize = 1024 * 768 * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
+	UINT32 FbSize = Private->Info.HorizontalResolution * Private->Info.VerticalResolution * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
+    Private->Gop.Mode->FrameBufferBase = (EFI_PHYSICAL_ADDRESS)(UINTN)AllocatePages(EFI_SIZE_TO_PAGES(FbSize));
+    Private->Gop.Mode->FrameBufferSize = FbSize;
 
     Status = Private->Gop.SetMode(&Private->Gop, 0);
     if (EFI_ERROR (Status)) {
@@ -82,20 +82,5 @@ EFI_STATUS EFIAPI GopSetup(IN OUT MY_GPU_PRIVATE_DATA *Private) {
 		return Status;
     }
     DEBUG ((EFI_D_INFO, "installing handle, with private at %p\n", Private));
-
-    // Install the GOP protocol
-	// this hangs if used like this. probably depends on Path
-    Status = gBS->InstallMultipleProtocolInterfaces(
-        &Handle,
-        &gEfiGraphicsOutputProtocolGuid,
-		&Private->Gop,
-        NULL
-    );
-    DEBUG ((EFI_D_INFO, "did install \n"));
-    if (EFI_ERROR(Status)) {
-        FreePool(Private->Gop.Mode);
-        FreePool(Private);
-		DEBUG ((EFI_D_INFO, "very bad\n"));
-    }
 	return Status;
 }

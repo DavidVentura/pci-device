@@ -6,7 +6,9 @@
 #include <stddef.h>
 
 typedef struct {
+    EFI_HANDLE Handle;
     EFI_PCI_IO_PROTOCOL             *PciIo;
+    EFI_DEVICE_PATH_PROTOCOL        *GopDevicePath;
 
     EFI_GRAPHICS_OUTPUT_PROTOCOL Gop;
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION Info;
