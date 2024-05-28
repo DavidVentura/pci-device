@@ -8,12 +8,21 @@
 
 [Sources]
   rom.c
+  gop.c
+  oprom.h
 
 [Packages]
   MdePkg/MdePkg.dec
 
 [LibraryClasses]
-  UefiDriverEntryPoint
-  PrintLib
   DebugLib
+  PciLib
+  PrintLib
+  DevicePathLib
+  UefiDriverEntryPoint
   UefiLib
+
+[Protocols]
+  gEfiGraphicsOutputProtocolGuid                # PROTOCOL BY_START
+  gEfiDevicePathProtocolGuid                    # PROTOCOL BY_START
+  gEfiPciIoProtocolGuid                         # PROTOCOL TO_START
