@@ -81,6 +81,7 @@ Done:
 }
 
 
+
 EFI_STATUS EFIAPI GpuVideoControllerDriverStart (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   Controller,
@@ -95,11 +96,45 @@ EFI_STATUS EFIAPI GpuVideoControllerDriverStart (
         return EFI_OUT_OF_RESOURCES;
     }
 
-	//Status = ReadPci(&Private);
+  Status = gBS->OpenProtocol (
+                  Controller,
+                  &gEfiPciIoProtocolGuid,
+                  (VOID **)&Private->PciIo,
+                  This->DriverBindingHandle,
+                  Controller,
+                  EFI_OPEN_PROTOCOL_BY_DRIVER
+                  );
     if (EFI_ERROR (Status)) {
 		DEBUG ((EFI_D_ERROR, "failed to ReadPci\n"));
 		return Status;
     }
+	// TODO: mb save orig attribs
+	
+  UINT64                    SupportedAttrs;
+  Status = Private->PciIo->Attributes (
+                             Private->PciIo,
+                             EfiPciIoAttributeOperationSupported,
+                             0,
+                             &SupportedAttrs
+                             );
+    if (EFI_ERROR (Status)) {
+		DEBUG ((EFI_D_ERROR, "failed to check attrs\n"));
+		return Status;
+    }
+	DEBUG ((EFI_D_INFO, "sup attrs: %x\n", SupportedAttrs));
+  //
+  // Set new PCI attributes
+  //
+  Status = Private->PciIo->Attributes (
+                             Private->PciIo,
+                             EfiPciIoAttributeOperationEnable,
+                             EFI_PCI_DEVICE_ENABLE | EFI_PCI_IO_ATTRIBUTE_BUS_MASTER | SupportedAttrs,
+                             NULL
+                             );
+  if (EFI_ERROR (Status)) {
+		DEBUG ((EFI_D_ERROR, "failed to enable\n"));
+		return Status;
+  }
 
 	Status = GopSetup(Private);
     if (EFI_ERROR (Status)) {
@@ -107,6 +142,22 @@ EFI_STATUS EFIAPI GpuVideoControllerDriverStart (
 		return Status;
     }
 
+	UINT32 pixval = 0xffffffff;
+	UINT32 i = 0x0;
+	for(i=0; i<32; i++) {
+		Status = Private->PciIo->Mem.Write (
+						  Private->PciIo,       // This
+						  EfiPciIoWidthUint32,  // Width
+						  0,                    // BarIndex
+						  i*4,                    // Offset
+						  1,                    // Count
+						  &pixval       		// pixval?
+						  );
+		if (EFI_ERROR (Status)) {
+			DEBUG ((EFI_D_ERROR, "failed to memwrite at offset %d\n", i));
+		  //return Status;
+		}
+	}
 
     DEBUG ((EFI_D_INFO, "good\n"));
 	return Status;
