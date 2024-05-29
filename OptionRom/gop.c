@@ -34,16 +34,19 @@ EFI_STATUS EFIAPI MyGpuQueryMode(
     OUT EFI_GRAPHICS_OUTPUT_MODE_INFORMATION **Info
 ) {
     MY_GPU_PRIVATE_DATA *Private = MY_GPU_PRIVATE_DATA_FROM_THIS(This);
-	DEBUG ((EFI_D_INFO, "in querymode, private at %p\n", Private));
+	DEBUG ((EFI_D_INFO, "in querymode for mode=%d\n", ModeNumber));
 
     if (ModeNumber >= This->Mode->MaxMode) {
 		DEBUG ((EFI_D_INFO, "badparam\n"));
         return EFI_INVALID_PARAMETER;
     }
+	// Info must be a newly allocated pool
 
     *SizeOfInfo = sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION);
-    *Info = &Private->Info;
-    DEBUG ((EFI_D_INFO, "donequery\n"));
+	*Info = AllocateCopyPool (*SizeOfInfo, &Private->Info);
+
+    //*Info = &Private->Info;
+    DEBUG ((EFI_D_INFO, "donequery hr %d vr %d\n", (*Info)->HorizontalResolution, (*Info)->VerticalResolution));
     return EFI_SUCCESS;
 }
 
