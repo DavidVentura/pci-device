@@ -13,6 +13,7 @@
 
 [Packages]
   MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
 
 [LibraryClasses]
   DebugLib
@@ -21,6 +22,7 @@
   DevicePathLib
   UefiDriverEntryPoint
   UefiLib
+  FrameBufferBltLib
 
 [Protocols]
   gEfiGraphicsOutputProtocolGuid                # PROTOCOL BY_START
