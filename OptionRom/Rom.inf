@@ -9,6 +9,7 @@
 [Sources]
   rom.c
   gop.c
+  dma.c
   oprom.h
 
 [Packages]

@@ -21,3 +21,9 @@ typedef struct {
 } MY_GPU_PRIVATE_DATA;
 
 EFI_STATUS EFIAPI GopSetup(IN OUT MY_GPU_PRIVATE_DATA *Private);
+
+EFI_STATUS EFIAPI DoBusMasterWrite (
+  IN EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN UINT8                *HostAddress,
+  IN UINTN                 Length
+  );

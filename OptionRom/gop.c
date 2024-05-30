@@ -18,8 +18,6 @@ EFI_STATUS EFIAPI MyGpuBlt(
 	) {
 	DEBUG ((EFI_D_INFO, "Blit\n"));
 	MY_GPU_PRIVATE_DATA *Private = MY_GPU_PRIVATE_DATA_FROM_THIS(This);
-	// Implement Blt function
-	// TODO: maybe need to mmap the buffer!!
 	EFI_STATUS Status;
 	Status = FrameBufferBlt (
 			Private->FrameBufferBltConfigure,
@@ -33,27 +31,13 @@ EFI_STATUS EFIAPI MyGpuBlt(
 			Height,
 			Delta
 			);
-  ASSERT_RETURN_ERROR (Status);
+	ASSERT_RETURN_ERROR (Status);
+	DoBusMasterWrite(Private->PciIo, (void*)Private->Gop.Mode->FrameBufferBase, Private->Gop.Mode->FrameBufferSize);
 
-	for(int y=0; y<Private->Info.VerticalResolution;y++){
-		for(int x=0; x<Private->Info.HorizontalResolution;x++){
-			UINT32 i = (Private->Info.HorizontalResolution * y + x) * 4;
-			//UINT32 i = Private->Info.HorizontalResolution * y + x * 4;
-			UINT32 r = ((char*)Private->Gop.Mode->FrameBufferBase)[i+2];
-			UINT32 g = ((char*)Private->Gop.Mode->FrameBufferBase)[i+1];
-			UINT32 b = ((char*)Private->Gop.Mode->FrameBufferBase)[i+0];
-			UINT32 pixval = b | (g << 8) | (r << 16);
-			//UINT32 pixval = ((char*)Private->Gop.Mode->FrameBufferBase)[i+2];
-			Private->PciIo->Mem.Write (
-					Private->PciIo,       // This
-					EfiPciIoWidthUint32,  // Width
-					0,                    // BarIndex
-					i,                    // Offset
-					1,                    // Count
-					&pixval       		// pixval?
-					);
-		}
-	}
+	// TODO: need to mmap the buffer so it works after ExitBootServices via MMIO
+	// if that's done, then probably it doesn't make sense to use the DMA path here, and it could be replaced with
+	// CopyMem(0xfd000000, (char*)Private->Gop.Mode->FrameBufferBase, Private->Gop.Mode->FrameBufferSize);
+	// which is what efifb will do later
 	return EFI_SUCCESS;
 }
 
