@@ -65,7 +65,7 @@ static void gpu_class_init(ObjectClass *class, void *data) {
     k->exit = pci_gpu_uninit;
     k->vendor_id = PCI_VENDOR_ID_QEMU;
     k->device_id = GPU_DEVICE_ID;
-    k->class_id = PCI_CLASS_OTHERS;
+    k->class_id = PCI_CLASS_DISPLAY_OTHER;
 
     DeviceClass *dc = DEVICE_CLASS(class);
     set_bit(DEVICE_CATEGORY_DISPLAY, dc->categories);
