@@ -31,7 +31,10 @@ EFI_STATUS EFIAPI MyGpuBlt(
 			Height,
 			Delta
 			);
-	ASSERT_RETURN_ERROR (Status);
+  	if (EFI_ERROR (Status)) {
+		DEBUG ((EFI_D_INFO, "Failed to blit: %d\n", Status));
+		return Status;
+	}
 	DoBusMasterWrite(Private->PciIo, (void*)Private->Gop.Mode->FrameBufferBase, Private->Gop.Mode->FrameBufferSize);
 
 	// TODO: need to mmap the buffer so it works after ExitBootServices via MMIO

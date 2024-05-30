@@ -12,12 +12,7 @@ EFI_STATUS EFIAPI DoBusMasterWrite (
   EFI_PHYSICAL_ADDRESS    DeviceAddress;
   VOID                    *Mapping;
   UINT32                  DmaStartAddress;
-  //UINT64                  ControllerStatus;
   
-  //
-  // Loop until the entire buffer specified by HostAddress and
-  // Length has been written by the PCI DMA bus master
-  // do {
     //
     // Call Map() to retrieve the DeviceAddress to use for the bus
     // master write operation. The Map() function may not support
