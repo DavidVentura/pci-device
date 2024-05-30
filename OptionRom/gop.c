@@ -15,32 +15,46 @@ EFI_STATUS EFIAPI MyGpuBlt(
     IN  UINTN                              Width,
     IN  UINTN                              Height,
     IN  UINTN                              Delta
-    ) {
-  DEBUG ((EFI_D_INFO, "Blit\n"));
-  MY_GPU_PRIVATE_DATA *Private = MY_GPU_PRIVATE_DATA_FROM_THIS(This);
-  // Implement Blt function
-  // TODO: maybe need to mmap the buffer!!
-  for(int i=0; i<128; i++) {
-    EFI_GRAPHICS_OUTPUT_BLT_PIXEL pix;
-    if (BltOperation == EfiBltVideoFill) {
-      pix = BltBuffer[0];
-    } else if (BltOperation == EfiBltBufferToVideo) {
-      pix = BltBuffer[i];
-    } else {
-      DEBUG ((EFI_D_ERROR, "Bad operation %d\n", BltOperation));
-      break;
-    }
-    UINT32 pixval = pix.Blue | ((unsigned int)pix.Green << 8) | ((unsigned int)pix.Red << 16);
-    Private->PciIo->Mem.Write (
-        Private->PciIo,       // This
-        EfiPciIoWidthUint32,  // Width
-        0,                    // BarIndex
-        i*4,                    // Offset
-        1,                    // Count
-        &pixval       		// pixval?
-        );
-  }
-  return EFI_SUCCESS;
+	) {
+	DEBUG ((EFI_D_INFO, "Blit\n"));
+	MY_GPU_PRIVATE_DATA *Private = MY_GPU_PRIVATE_DATA_FROM_THIS(This);
+	// Implement Blt function
+	// TODO: maybe need to mmap the buffer!!
+	EFI_STATUS Status;
+	Status = FrameBufferBlt (
+			Private->FrameBufferBltConfigure,
+			BltBuffer,
+			BltOperation,
+			SourceX,
+			SourceY,
+			DestinationX,
+			DestinationY,
+			Width,
+			Height,
+			Delta
+			);
+  ASSERT_RETURN_ERROR (Status);
+
+	for(int y=0; y<Private->Info.VerticalResolution;y++){
+		for(int x=0; x<Private->Info.HorizontalResolution;x++){
+			UINT32 i = (Private->Info.HorizontalResolution * y + x) * 4;
+			//UINT32 i = Private->Info.HorizontalResolution * y + x * 4;
+			UINT32 r = ((char*)Private->Gop.Mode->FrameBufferBase)[i+2];
+			UINT32 g = ((char*)Private->Gop.Mode->FrameBufferBase)[i+1];
+			UINT32 b = ((char*)Private->Gop.Mode->FrameBufferBase)[i+0];
+			UINT32 pixval = b | (g << 8) | (r << 16);
+			//UINT32 pixval = ((char*)Private->Gop.Mode->FrameBufferBase)[i+2];
+			Private->PciIo->Mem.Write (
+					Private->PciIo,       // This
+					EfiPciIoWidthUint32,  // Width
+					0,                    // BarIndex
+					i,                    // Offset
+					1,                    // Count
+					&pixval       		// pixval?
+					);
+		}
+	}
+	return EFI_SUCCESS;
 }
 
 EFI_STATUS EFIAPI MyGpuSetMode(
@@ -74,7 +88,6 @@ EFI_STATUS EFIAPI MyGpuSetMode(
   DEBUG((EFI_D_INFO, "was %d\n", Status));
   DEBUG((EFI_D_INFO, "2bltconf %p\n", Private->FrameBufferBltConfigure));
   ZeroMem (&Black, sizeof (Black));
-  SetMem (&Black, sizeof (Black), 0xaa);
   // not mmapped to the devie = invislbe
   Status = FrameBufferBlt (
       Private->FrameBufferBltConfigure,
@@ -137,12 +150,11 @@ EFI_STATUS EFIAPI GopSetup(IN OUT MY_GPU_PRIVATE_DATA *Private) {
 
   // Fill in the mode information
   Private->Info.Version = 0;
-  Private->Info.HorizontalResolution = 1280;
-  Private->Info.VerticalResolution = 800;
+  Private->Info.HorizontalResolution = 640; // hardcoded on the adapter
+  Private->Info.VerticalResolution = 480;
   Private->Info.PixelFormat = PixelBlueGreenRedReserved8BitPerColor;
   Private->Info.PixelsPerScanLine = Private->Info.HorizontalResolution;
 
-  Private->InfoPtr = &Private->Info;
   Private->Gop.Mode = AllocateZeroPool(sizeof(EFI_GRAPHICS_OUTPUT_PROTOCOL_MODE));
   if (Private->Gop.Mode == NULL) {
     FreePool(Private);
@@ -150,7 +162,7 @@ EFI_STATUS EFIAPI GopSetup(IN OUT MY_GPU_PRIVATE_DATA *Private) {
   }
   Private->Gop.Mode->MaxMode = 1;
   Private->Gop.Mode->Mode = 0;
-  Private->Gop.Mode->Info = Private->InfoPtr;
+  Private->Gop.Mode->Info = &Private->Info;
   Private->Gop.Mode->SizeOfInfo = sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION);
   UINT32 FbSize = Private->Info.HorizontalResolution * Private->Info.VerticalResolution * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
   Private->Gop.Mode->FrameBufferBase = (EFI_PHYSICAL_ADDRESS)(UINTN)AllocatePages(EFI_SIZE_TO_PAGES(FbSize));

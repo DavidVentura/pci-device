@@ -184,24 +184,6 @@ EFI_STATUS EFIAPI GpuVideoControllerDriverStart (
     return Status;
   }
 
-  UINT32 pixval = 0xffffffff;
-  UINT32 i = 0x0;
-  for(i=0; i<16; i++) {
-    Status = Private->PciIo->Mem.Write (
-        Private->PciIo,       // This
-        EfiPciIoWidthUint32,  // Width
-        0,                    // BarIndex
-        i*4,                    // Offset
-        1,                    // Count
-        &pixval       		// pixval?
-        );
-    if (EFI_ERROR (Status)) {
-      DEBUG ((EFI_D_ERROR, "failed to memwrite at offset %d\n", i));
-      //return Status;
-    }
-  }
-
-
   // Install the GOP protocol
   Status = gBS->InstallMultipleProtocolInterfaces(
       &Private->Handle,
