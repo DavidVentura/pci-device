@@ -140,6 +140,17 @@ EFI_STATUS EFIAPI GpuVideoControllerDriverStart (
     DEBUG ((EFI_D_ERROR, "failed to enable\n"));
     return Status;
   }
+
+  // BAR #1 = VideoMem
+  EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR  *Resources;
+  Status = Private->PciIo->GetBarAttributes (Private->PciIo, 0, NULL, (VOID **)&Resources);
+  DEBUG (( EFI_D_INFO, "iomem is at %x and is %x long\n", Resources->AddrRangeMin, Resources->AddrLen));
+  Status = Private->PciIo->GetBarAttributes (Private->PciIo, 1, NULL, (VOID **)&Resources);
+  DEBUG (( EFI_D_INFO, "fbmem is at %x and is %x long\n", Resources->AddrRangeMin, Resources->AddrLen));
+  Private->PciFbMemBase = Resources->AddrRangeMin;
+  FreePool(Resources);
+
+
   //
   // Get ParentDevicePath
   //

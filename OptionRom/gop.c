@@ -20,6 +20,9 @@ EFI_STATUS EFIAPI MyGpuBlt(
 	MY_GPU_PRIVATE_DATA *Private = MY_GPU_PRIVATE_DATA_FROM_THIS(This);
 	EFI_STATUS Status;
 	Status = FrameBufferBlt (
+			// This Configure points to PciFbMemBase
+			// so FrameBufferBlt is writing to the PCI FB directly,
+			// which is what efifb will do later
 			Private->FrameBufferBltConfigure,
 			BltBuffer,
 			BltOperation,
@@ -35,12 +38,6 @@ EFI_STATUS EFIAPI MyGpuBlt(
 		DEBUG ((EFI_D_INFO, "Failed to blit: %d\n", Status));
 		return Status;
 	}
-	DoBusMasterWrite(Private->PciIo, (void*)Private->Gop.Mode->FrameBufferBase, Private->Gop.Mode->FrameBufferSize);
-
-	// TODO: need to mmap the buffer so it works after ExitBootServices via MMIO
-	// if that's done, then probably it doesn't make sense to use the DMA path here, and it could be replaced with
-	// CopyMem(0xfd000000, (char*)Private->Gop.Mode->FrameBufferBase, Private->Gop.Mode->FrameBufferSize);
-	// which is what efifb will do later
 	return EFI_SUCCESS;
 }
 
@@ -152,7 +149,7 @@ EFI_STATUS EFIAPI GopSetup(IN OUT MY_GPU_PRIVATE_DATA *Private) {
   Private->Gop.Mode->Info = &Private->Info;
   Private->Gop.Mode->SizeOfInfo = sizeof(EFI_GRAPHICS_OUTPUT_MODE_INFORMATION);
   UINT32 FbSize = Private->Info.HorizontalResolution * Private->Info.VerticalResolution * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL);
-  Private->Gop.Mode->FrameBufferBase = (EFI_PHYSICAL_ADDRESS)(UINTN)AllocatePages(EFI_SIZE_TO_PAGES(FbSize));
+  Private->Gop.Mode->FrameBufferBase = Private->PciFbMemBase;
   Private->Gop.Mode->FrameBufferSize = FbSize;
 
   Status = Private->Gop.SetMode(&Private->Gop, 0);

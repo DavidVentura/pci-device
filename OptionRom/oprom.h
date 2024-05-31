@@ -15,6 +15,8 @@ typedef struct {
   FRAME_BUFFER_CONFIGURE          *FrameBufferBltConfigure;
   UINTN                           FrameBufferBltConfigureSize;
 
+  EFI_PHYSICAL_ADDRESS 			  PciFbMemBase;
+
   EFI_GRAPHICS_OUTPUT_PROTOCOL Gop;
   EFI_GRAPHICS_OUTPUT_MODE_INFORMATION Info;
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL *FrameBuffer;
