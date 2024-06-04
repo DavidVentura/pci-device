@@ -46,13 +46,11 @@ EFI_STATUS EFIAPI MyGpuSetMode(
     IN UINT32 ModeNumber
     ) {
   DEBUG ((EFI_D_INFO, "setmode to %d\n", ModeNumber));
-  // Implement SetMode function
   MY_GPU_PRIVATE_DATA        *Private;
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL  Black;
   EFI_STATUS Status;
   Private =  MY_GPU_PRIVATE_DATA_FROM_THIS(This);
   DEBUG((EFI_D_INFO, "hr %d vr %d\n", This->Mode->Info->HorizontalResolution, This->Mode->Info->VerticalResolution));
-  DEBUG((EFI_D_INFO, "1bltconf %p\n", Private->FrameBufferBltConfigure));
   Status = FrameBufferBltConfigure (
       (VOID *)(UINTN)This->Mode->FrameBufferBase,
       This->Mode->Info,
@@ -60,33 +58,13 @@ EFI_STATUS EFIAPI MyGpuSetMode(
       &Private->FrameBufferBltConfigureSize
       );
   if (Status == RETURN_BUFFER_TOO_SMALL) {
-    DEBUG((EFI_D_INFO, "was2small\n"));
-    Private->FrameBufferBltConfigure = AllocatePool (Private->FrameBufferBltConfigureSize);
+    DEBUG((EFI_D_ERROR, "ERROR: was2small\n"));
+    return EFI_OUT_OF_RESOURCES;
   }
-  Status = FrameBufferBltConfigure (
-      (VOID *)(UINTN)This->Mode->FrameBufferBase,
-      This->Mode->Info,
-      Private->FrameBufferBltConfigure,
-      &Private->FrameBufferBltConfigureSize
-      );
-  DEBUG((EFI_D_INFO, "was %d\n", Status));
-  DEBUG((EFI_D_INFO, "2bltconf %p\n", Private->FrameBufferBltConfigure));
   ZeroMem (&Black, sizeof (Black));
-  // not mmapped to the devie = invislbe
   Status = FrameBufferBlt (
       Private->FrameBufferBltConfigure,
       &Black,
-      EfiBltVideoFill,
-      0,
-      0,
-      0,
-      0,
-      This->Mode->Info->HorizontalResolution,
-      This->Mode->Info->VerticalResolution,
-      0
-      );
-
-  Private->Gop.Blt(&Private->Gop, &Black,
       EfiBltVideoFill,
       0,
       0,
