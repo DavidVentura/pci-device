@@ -1,6 +1,7 @@
 #ifndef GPU_MODULE
 #define GPU_MODULE
 #include <linux/pci.h>
+#include <linux/fb.h>
 #include <linux/cdev.h>
 
 typedef struct GpuState {
@@ -12,6 +13,9 @@ typedef struct GpuState {
 	// offset to GpuState, which we can then pass to `file`'s `private_data`
 	struct cdev cdev;
 	struct cdev fbcdev;
+
+	unsigned long fb_phys;
+	struct fb_info* info;
 
 } GpuState;
 

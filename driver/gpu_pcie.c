@@ -15,6 +15,7 @@ volatile int irq_fired = 0;
 static struct class *gpu_class;
 
 int setup_chardev(GpuState*, struct class*, struct pci_dev*);
+int setup_fbdev(GpuState* gpu, struct pci_dev *pdev);
 
 static irqreturn_t irq_handler(int irq, void *data) {
 	GpuState *gpu = data;
@@ -81,9 +82,11 @@ static int gpu_probe(struct pci_dev *pdev, const struct pci_device_id *id) {
 	// map physical address to virtual
 	gpu->fbmem = ioremap(mmio_start, mmio_len);
 	pr_info("fb starts at 0x%lx; hwmem 0x%px", mmio_start, gpu->fbmem);
+	gpu->fb_phys = mmio_start;
 
 	setup_chardev(gpu, gpu_class, pdev);
 
+	setup_fbdev(gpu, pdev);
 	// need to set dma_mask & bus master to get IRQs
 	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
 	if(err) {

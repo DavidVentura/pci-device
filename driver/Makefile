@@ -1,5 +1,5 @@
 obj-m += gpu.o
-gpu-objs += gpu_pcie.o gpu_char.o
+gpu-objs += gpu_pcie.o gpu_char.o gpu_fb.o
 ccflags-y=-I/home/david/git/pci-device/include
 
 all:
